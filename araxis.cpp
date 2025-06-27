@@ -128,7 +128,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	LocalFree(szArgList);
 
 	// Add Beyond Compare flags
-	args += L" /wait /solo";
+	args += L" /wait";
 
 	// Launch Beyond Compare with constructed args
 	STARTUPINFOW si = { sizeof(si) };
