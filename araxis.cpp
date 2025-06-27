@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include <string>
 #include <algorithm>
+#include <sstream>
 #pragma comment(lib, "shell32.lib")
 
 std::wstring ToLower(std::wstring s) {
@@ -12,8 +13,8 @@ std::wstring ToLower(std::wstring s) {
 }
 
 bool CopySelfToTarget(const wchar_t* targetPath) {
-	wchar_t selfPath[MAX_PATH];
-	GetModuleFileNameW(nullptr, selfPath, MAX_PATH);
+	wchar_t selfPath[MAX_PATH + 1];
+	GetModuleFileNameW(nullptr, selfPath, MAX_PATH + 1);
 
 	// Try copying
 	BOOL ok = CopyFileW(selfPath, targetPath, FALSE);
@@ -21,8 +22,8 @@ bool CopySelfToTarget(const wchar_t* targetPath) {
 }
 
 void RelaunchElevated() {
-	wchar_t selfPath[MAX_PATH];
-	GetModuleFileNameW(nullptr, selfPath, MAX_PATH);
+	wchar_t selfPath[MAX_PATH + 1];
+	GetModuleFileNameW(nullptr, selfPath, MAX_PATH + 1);
 
 	SHELLEXECUTEINFOW sei = { sizeof(sei) };
 	sei.lpVerb = L"runas";
@@ -51,15 +52,15 @@ bool IsRunningAsAdmin() {
 }
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
-	const wchar_t* bcompPath = L"D:\\Programs\\Beyond Compare 4\\bcomp.exe";
+	const wchar_t* bcompPath = L"D:\\Programs\\Beyond Compare 4\\BCompare.exe";
 	const wchar_t* installPath = L"C:\\Program Files\\Araxis\\Araxis Merge\\";
 	const wchar_t* compareExe = L"C:\\Program Files\\Araxis\\Araxis Merge\\Compare.exe";
 	const wchar_t* mergeExe = L"C:\\Program Files\\Araxis\\Araxis Merge\\Merge.exe";
 	const wchar_t* consoleCompareExe = L"C:\\Program Files\\Araxis\\Araxis Merge\\ConsoleCompare.exe";
 
 	// Get own executable full path and filename
-	wchar_t selfPath[MAX_PATH];
-	GetModuleFileNameW(nullptr, selfPath, MAX_PATH);
+	wchar_t selfPath[MAX_PATH + 1];
+	GetModuleFileNameW(nullptr, selfPath, MAX_PATH + 1);
 
 	// If no arguments: install copies to all 3 exe names
 	if (__argc <= 1) {
@@ -82,53 +83,56 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 	}
 
-	// Determine mode based on executable name (lowercase)
-	std::wstring selfName = selfPath;
-	selfName = selfName.substr(selfName.find_last_of(L"\\/") + 1);
-	std::wstring mode = ToLower(selfName);
-
-	std::wstring args = L"\"";
-	args += bcompPath;
-	args += L"\" ";
-
 	// Parse command line args again
 	LPWSTR* szArgList;
 	int argCount;
 	szArgList = CommandLineToArgvW(GetCommandLineW(), &argCount);
 
-	// Build args based on mode
-	if (mode.find(L"merge") != std::wstring::npos) {
-		// Merge.exe: expect 3 or 4 files for 3-way merge
-		if (argCount < 4) {
-			MessageBoxW(nullptr, L"Araxis Merge stub expects at least 3 arguments.", L"Error", MB_OK | MB_ICONERROR);
-			return 1;
-		}
-		// Typical merge args: local, remote, base, merged (4 args)
-		// Append those files explicitly
-		for (int i = 1; i < argCount; ++i) {
-			args += L" \"";
-			args += szArgList[i];
-			args += L"\"";
+	std::wstring args = L"";
+	bool isMerge = false;
+	for (int i = 1; i < argCount; ++i) {
+		std::wstring arg = szArgList[i];
+		std::transform(arg.begin(), arg.end(), arg.begin(), ::towlower);
+		if (arg == L"-merge" || arg == L"/merge" || arg == L"-3") {
+			isMerge = true;
+			break;
 		}
 	}
-	else {
-		// Compare.exe or ConsoleCompare.exe: expect 2 files (local, remote)
-		if (argCount < 3) {
-			MessageBoxW(nullptr, L"Araxis Compare stub expects at least 2 arguments.", L"Error", MB_OK | MB_ICONERROR);
-			return 1;
+	int numParams = isMerge ? 4 : 2;
+
+	int filesFound = 0;
+	for (int i = 1; i < argCount && filesFound < numParams; ++i) {
+		std::wstring arg = szArgList[i];
+
+		if (arg.empty() || arg[0] == L'-' || arg[0] == L'/') {
+			// Skip flags
+			continue;
 		}
-		// Only pass first two arguments
+
 		args += L" \"";
-		args += szArgList[1];
-		args += L"\" \"";
-		args += szArgList[2];
+		args += arg;
 		args += L"\"";
+		++filesFound;
+	}
+
+	if (filesFound < numParams) {
+		MessageBoxW(nullptr, L"Not enough file paths provided in arguments.", L"Error", MB_OK | MB_ICONERROR);
+		LocalFree(szArgList);
+		return 1;
 	}
 
 	LocalFree(szArgList);
-
+	
 	// Add Beyond Compare flags
 	args += L" /wait";
+
+	//std::wstringstream debugMsg;
+	//debugMsg << L"Command line:\n" << GetCommandLineW() << L"\n\n";
+	//debugMsg << L"Arg count: " << argCount << L"\n\n";
+	//debugMsg << L"Final args:\n" << args << L"\n\n";
+	//debugMsg << L"Self path:\n" << selfPath << L"\n\n";
+	//
+	//MessageBoxW(nullptr, debugMsg.str().c_str(), L"Debug Info", MB_OK);
 
 	// Launch Beyond Compare with constructed args
 	STARTUPINFOW si = { sizeof(si) };
