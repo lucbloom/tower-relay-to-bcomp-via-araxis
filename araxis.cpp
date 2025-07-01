@@ -136,7 +136,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// Add Beyond Compare flags
 	args += L" /wait";
 
-	//*
+	/*
 	std::wstringstream debugMsg;
 	debugMsg << L"Command line:\n" << GetCommandLineW() << L"\n\n";
 	debugMsg << L"Arg count: " << argCount << L"\n\n";
