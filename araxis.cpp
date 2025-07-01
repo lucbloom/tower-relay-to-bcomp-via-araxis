@@ -5,6 +5,7 @@
 #include <string>
 #include <algorithm>
 #include <sstream>
+#include <vector>
 #pragma comment(lib, "shell32.lib")
 
 std::wstring ToLower(std::wstring s) {
@@ -100,40 +101,56 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	}
 	int numParams = isMerge ? 4 : 2;
 
-	int filesFound = 0;
-	for (int i = 1; i < argCount && filesFound < numParams; ++i) {
+	std::vector<std::wstring> filesFound;
+	for (int i = 1; i < argCount && filesFound.size() < numParams; ++i)
+	{
 		std::wstring arg = szArgList[i];
-
 		if (arg.empty() || arg[0] == L'-' || arg[0] == L'/') {
 			// Skip flags
 			continue;
 		}
 
-		args += L" \"";
-		args += arg;
-		args += L"\"";
-		++filesFound;
+		filesFound.push_back(arg);
 	}
 
-	if (filesFound < numParams) {
+	if (filesFound.size() < numParams) {
 		MessageBoxW(nullptr, L"Not enough file paths provided in arguments.", L"Error", MB_OK | MB_ICONERROR);
 		LocalFree(szArgList);
 		return 1;
 	}
 
-	LocalFree(szArgList);
-	
+	if (isMerge &&
+		filesFound[1].find(L"BASE") != std::wstring::npos &&
+		filesFound[2].find(L"REMOTE") != std::wstring::npos)
+	{
+		std::swap(filesFound[1], filesFound[2]);
+	}
+
+	for (int i = 0; i < filesFound.size(); ++i)
+	{
+		args += L" \"";
+		args += filesFound[i];
+		args += L"\"";
+	}
+
 	// Add Beyond Compare flags
 	args += L" /wait";
 
-	//std::wstringstream debugMsg;
-	//debugMsg << L"Command line:\n" << GetCommandLineW() << L"\n\n";
-	//debugMsg << L"Arg count: " << argCount << L"\n\n";
-	//debugMsg << L"Final args:\n" << args << L"\n\n";
-	//debugMsg << L"Self path:\n" << selfPath << L"\n\n";
-	//
-	//MessageBoxW(nullptr, debugMsg.str().c_str(), L"Debug Info", MB_OK);
+	//*
+	std::wstringstream debugMsg;
+	debugMsg << L"Command line:\n" << GetCommandLineW() << L"\n\n";
+	debugMsg << L"Arg count: " << argCount << L"\n\n";
+	debugMsg << L"Final args:\n" << args << L"\n\n";
+	debugMsg << L"Self path:\n" << selfPath << L"\n\n";
+	for (int i = 0; i < argCount; ++i)
+	{
+		debugMsg << L"[" << i << "] " << szArgList[i] << L"\n";
+	}
+	MessageBoxW(nullptr, debugMsg.str().c_str(), L"Debug Info", MB_OK);
+	//*/
 
+	LocalFree(szArgList);
+	
 	// Launch Beyond Compare with constructed args
 	STARTUPINFOW si = { sizeof(si) };
 	PROCESS_INFORMATION pi;
